@@ -1,0 +1,11 @@
+# Compiled artifacts and executables (Cargo)
+target/
+
+# Ignore Cargo.lock for libraries. For binaries/apps, commit this file.
+Cargo.lock
+
+# rustfmt backups
+**/*.rs.bk
+
+# Windows/MSVC debug symbols
+*.pdb
