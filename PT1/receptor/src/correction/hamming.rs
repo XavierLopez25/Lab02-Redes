@@ -105,3 +105,122 @@ pub fn decode_stream(bits_str: &str, n: usize) -> Result<HammingStreamResult, St
     let data_bits: String = all_data.into_iter().map(|v| if v == 1 {'1'} else {'0'}).collect();
     Ok(HammingStreamResult { data_bits, corrected_positions })
 }
+
+// --------------------------------- Tests --------------------------------- 
+// === Helpers de emisor para pruebas Hamming ===
+
+// Codifica un bloque de datos (m bits) en un bloque Hamming de longitud n (m + r).
+fn encode_block(data: &[u8], n: usize) -> Result<Vec<u8>, String> {
+    let r = parity_bits_count(n);
+    let m = n - r;
+    if data.len() != m {
+        return Err(format!("El bloque de datos debe tener m={} bits, recibido {}", m, data.len()));
+    }
+    // Colocar bits: paridad en potencias de dos, datos en el resto
+    let mut block = vec![0u8; n];
+    let mut di = 0usize;
+    for pos in 1..=n {
+        if !is_power_of_two(pos) {
+            block[pos - 1] = data[di];
+            di += 1;
+        }
+    }
+    // Calcular bits de paridad
+    for i in 0..r {
+        let p = 1usize << i;
+        let mut parity = 0u8;
+        for pos in 1..=n {
+            if (pos & p) != 0 {
+                parity ^= block[pos - 1];
+            }
+        }
+        block[p - 1] = parity;
+    }
+    Ok(block)
+}
+
+// Codifica una secuencia de datos en bloques Hamming de longitud n.
+fn encode_stream(data_bits: &str, n: usize) -> Result<String, String> {
+    if !data_bits.chars().all(|c| c=='0' || c=='1') {
+        return Err("Solo se aceptan '0' y '1'".into());
+    }
+    let r = parity_bits_count(n);
+    let m = n - r;
+    let bits: Vec<u8> = data_bits.chars().map(|c| if c=='1' {1} else {0}).collect();
+    if bits.len() % m != 0 {
+        return Err(format!("La longitud de datos ({}) debe ser múltiplo de m={} para n={}", bits.len(), m, n));
+    }
+    let mut out = Vec::<u8>::new();
+    for chunk in bits.chunks(m) {
+        let block = encode_block(chunk, n)?;
+        out.extend_from_slice(&block);
+    }
+    let s: String = out.into_iter().map(|b| if b==1 {'1'} else {'0'}).collect();
+    Ok(s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn flip_bit(s: String, idx: usize) -> String {
+        let mut v: Vec<u8> = s.chars().map(|c| if c=='1' {1} else {0}).collect();
+        if idx < v.len() { v[idx] ^= 1; }
+        v.into_iter().map(|b| if b==1 {'1'} else {'0'}).collect()
+    }
+
+    #[test]
+    fn hamming_sin_errores_varias_longitudes() {
+        let n = 7; // Hamming(7,4)
+        let casos = vec![
+            "1011",        // 1 bloque (m=4)
+            "10110010",    // 2 bloques
+            "111000111000" // 3 bloques
+        ];
+        for data in casos {
+            let codeword = encode_stream(data, n).expect("emisor hamming");
+            let res = decode_stream(&codeword, n).expect("decodificar");
+            assert!(res.corrected_positions.is_empty(), "no debería corregir");
+            assert_eq!(res.data_bits, data);
+        }
+    }
+
+    #[test]
+    fn hamming_un_error_corregible() {
+        let n = 7;
+        let casos = vec![
+            "1011",        // 1 bloque
+            "10110010",    // 2 bloques
+            "111000111000" // 3 bloques
+        ];
+        for data in casos {
+            let codeword = encode_stream(data, n).expect("emisor hamming");
+            // Voltear un bit en el primer bloque (p.ej., posición 3 del stream)
+            let tampered = flip_bit(codeword, 3);
+            let res = decode_stream(&tampered, n).expect("decodificar");
+            // Debe haber al menos una corrección
+            assert!(!res.corrected_positions.is_empty(), "debería corregir 1 error");
+            assert_eq!(res.data_bits, data, "datos corregidos deben coincidir");
+        }
+    }
+
+    #[test]
+    fn hamming_dos_errores_en_bloques_distintos() {
+        let n = 7;
+        // usaremos al menos 2 bloques para poder corregir 1 por bloque
+        let casos = vec![
+            "10110010",    // 2 bloques
+            "111000111000" // 3 bloques
+        ];
+        for data in casos {
+            let codeword = encode_stream(data, n).expect("emisor hamming");
+            // Voltear un bit en el primer bloque y otro en el segundo
+            let mut tampered = flip_bit(codeword.clone(), 2); // bloque 1
+            tampered = flip_bit(tampered, 8);                 // bloque 2 (índices 0-based)
+            let res = decode_stream(&tampered, n).expect("decodificar");
+            // Debe reportar 2 correcciones (una por bloque tocado)
+            assert!(res.corrected_positions.len() >= 2, "debería corregir 2 errores en bloques distintos");
+            assert_eq!(res.data_bits, data, "datos corregidos deben coincidir");
+        }
+    }
+}

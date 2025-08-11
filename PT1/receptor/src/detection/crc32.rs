@@ -72,3 +72,86 @@ pub fn verify_crc32_poly(received_bits: &str) -> Result<CrcVerify, String> {
         Ok(CrcVerify { valid: false, original_message: None })
     }
 }
+
+// --------------------------------- Tests ---------------------------------
+// === Helpers para pruebas (emulan al emisor) ===
+fn append_crc32_poly(msg_bits_str: &str) -> Result<String, String> {
+    let mut msg = parse_bits(msg_bits_str)?;
+    // Asegurar que el mensaje tenga al menos 1 bit para que verificación (>=33) sea válida
+    if msg.is_empty() {
+        return Err("El mensaje para CRC no puede ser vacío en estas pruebas".into());
+    }
+    // Padding: agregar 32 ceros (grado del polinomio)
+    msg.extend(std::iter::repeat(0u8).take(32));
+    let divisor = crc32_poly_bits();
+    let remainder = mod2_divide(msg.clone(), &divisor); // 32 bits
+    if remainder.len() != 32 {
+        return Err(format!("Resto inesperado de longitud {}", remainder.len()));
+    }
+    // Formar codeword: mensaje original + resto
+    let mut original_msg = parse_bits(msg_bits_str)?;
+    original_msg.extend_from_slice(&remainder);
+    Ok(bits_to_string(&original_msg))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn flip_bit_at(s: String, idx: usize) -> String {
+        let mut bytes: Vec<u8> = s.chars().map(|c| if c=='1' {1} else {0}).collect();
+        if idx < bytes.len() {
+            bytes[idx] ^= 1;
+        }
+        bits_to_string(&bytes)
+    }
+
+    #[test]
+    fn crc_no_error_varias_longitudes() {
+        let casos = vec![
+            "1",
+            "10101",
+            "1110001110001",
+        ];
+        for msg in casos {
+            let codeword = append_crc32_poly(msg).expect("emisor crc");
+            let v = verify_crc32_poly(&codeword).expect("verificar");
+            assert!(v.valid, "debería ser válido");
+            assert_eq!(v.original_message.unwrap(), msg);
+        }
+    }
+
+    #[test]
+    fn crc_error_un_bit() {
+        let casos = vec![
+            "1",
+            "10101",
+            "1110001110001",
+        ];
+        for msg in casos {
+            let codeword = append_crc32_poly(msg).expect("emisor crc");
+            // voltear un bit en alguna posición (p.ej., bit 3 o el del medio)
+            let idx = codeword.len()/2;
+            let tampered = flip_bit_at(codeword, idx);
+            let v = verify_crc32_poly(&tampered).expect("verificar");
+            assert!(!v.valid, "debería ser inválido por 1 error");
+        }
+    }
+
+    #[test]
+    fn crc_error_dos_o_mas_bits() {
+        let casos = vec![
+            "1",
+            "10101",
+            "1110001110001",
+        ];
+        for msg in casos {
+            let codeword = append_crc32_poly(msg).expect("emisor crc");
+            // voltear dos bits en diferentes posiciones
+            let mut tampered = flip_bit_at(codeword.clone(), 0);
+            tampered = flip_bit_at(tampered, codeword.len()-1);
+            let v = verify_crc32_poly(&tampered).expect("verificar");
+            assert!(!v.valid, "debería ser inválido por 2+ errores");
+        }
+    }
+}
