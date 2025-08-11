@@ -26,7 +26,7 @@ Selecciona algoritmo [1/2]:
 
 ---
 
-#### Uso: Hamming (opción 1)
+### Uso: Hamming (opción 1)
 
 **¿Qué es `n`?** Es la longitud **del bloque codificado** (datos + paridades).
 Ejemplos típicos:
