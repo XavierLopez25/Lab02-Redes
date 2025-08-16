@@ -15,7 +15,7 @@ fn main() {
     println!("=== RECEPTOR de Capa de Enlace ===");
     println!("Algoritmos disponibles:");
     println!("  1) Hamming (corrección de errores)");
-    println!("  2) CRC-32 (detección de errores, polinomial puro)");
+    println!("  2) CRC-32 (detección de errores)");
     let choice = read_line("Selecciona algoritmo [1/2]: ");
 
     let bits = read_line("Ingresa la trama en binario (solo 0/1): ");

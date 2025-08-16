@@ -49,14 +49,14 @@ public class Main {
                 }
                 Hamming.EncodeResult res = Hamming.encodeStream(msg, n);
                 if (res.paddingZeros > 0) {
-                    System.out.println("Nota: se aplicó padding de " + res.paddingZeros + " cero(s) al último bloque de datos.");
+                    System.out.println("Nota: se aplico padding de " + res.paddingZeros + " cero(s) al ultimo bloque de datos.");
                 }
                 System.out.println("Trama codificada Hamming: " + res.encodedBits);
                 break;
             }
             case "2": {
                 String codeword = CRC32.generateCRC32Poly(msg);
-                System.out.println("Trama con CRC-32 (puro): " + codeword);
+                System.out.println("Trama con CRC-32: " + codeword);
                 break;
             }
             default:
