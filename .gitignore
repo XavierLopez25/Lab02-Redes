@@ -9,3 +9,5 @@ Cargo.lock
 
 # Windows/MSVC debug symbols
 *.pdb
+
+.venv/
